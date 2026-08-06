@@ -76,6 +76,17 @@ Everything below is relative to that origin, x forward, y left (ROS REP-103):
 | Left / right edge | — | +/-0.125 m |
 | LIDAR (`base_laser`) | **+0.0425 m** | 0.0 m |
 
+LIDAR mounting: on top of the head dome, scan plane **0.40 m above the floor**.
+In the URDF that is `base_laser` z = 0.40 - 0.0375 = **0.3625 m** above
+`base_link`.
+
+Consequences of that height, relevant for Nav2 tuning:
+- Nothing below 0.40 m is visible — thresholds, cables, shoes, toys. The robot
+  will drive into them. Normal for a 2D LIDAR, but it limits where autonomous
+  driving is safe.
+- It looks *under* tables and only sees the legs. Good for path planning,
+  bad for not hitting the tabletop with the dome.
+
 Nav2 costmap footprint polygon:
 
     [[0.2025, 0.125], [0.2025, -0.125], [-0.0875, -0.125], [-0.0875, 0.125]]
@@ -104,16 +115,18 @@ still applies, but with an important caveat:
 > Straight-line driving is unaffected. See phase 2d.
 
 ### Still to be measured (needed for URDF and kinematics)
-- [ ] **Height of the LIDAR scan plane above the floor.** The `base_laser` z in
-      the URDF is that height minus 0.0375 m (the `base_link` height). The stock
-      `ld19.launch.py` uses 0.18 m, but that is the vendor's placeholder, not a
-      measurement.
 - [ ] **Zero-angle orientation of the LIDAR housing** — determines the yaw of
       `base_laser`. Get it from the bench test: put an object in a known
-      direction and see where it shows up in RViz2.
+      direction and see where it shows up in RViz2. Note the stock
+      `ld19.launch.py` publishes a placeholder TF at z = 0.18 m; that gets
+      replaced by our URDF.
 - [ ] Tooth count of the final drive gear (encoder resolution, see phase 3)
 
 ### To confirm
+- [ ] **Is the head dome rigid relative to the body?** The LIDAR mounts on top
+      of it. If the head can rotate, `base_laser` moves relative to `base_link`
+      and the whole TF tree becomes wrong. A rotating head would have to be
+      fixed in place, or fitted with an encoder — avoid the latter.
 - [ ] "Front" = the caster end. The geometry above assumes the edge that is
       160 mm from the LIDAR is the robot's front, i.e. it drives caster-first
       and the driven wheels trail. If it is the other way round, x flips sign.
