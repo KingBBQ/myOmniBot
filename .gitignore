@@ -1,0 +1,11 @@
+# Virtuelle Umgebung (esptool, pyserial) - per pip wiederherstellbar
+.venv/
+
+# Datenblaetter Dritter (Cytron, Maker Pi) - bewusst nicht veroeffentlicht
+specs/
+
+# WLAN-Zugangsdaten: liegen nur auf dem Board, gehoeren nicht ins Repo
+settings.toml
+
+__pycache__/
+*.pyc
