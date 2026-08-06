@@ -14,6 +14,110 @@ This project focuses on the modernization of a Tomy Omnibot 5402 robot, replacin
 - **Motor Driver:** Integrated driver supporting up to 1A continuous / 1.5A peak per channel.
 - **Connectivity:** Wi-Fi and Bluetooth.
 
+### LIDAR: LDROBOT STL-19P (LD19 series)
+Verified 2026-08-06 on the Ubuntu 24.04 VM with `ldlidar_stl_ros2`, driver SDK v3.0.3.
+
+| Property | Measured value | Source |
+| :--- | :--- | :--- |
+| Interface | USB-UART, 230400 baud 8N1 | driver reports "Actual BaudRate reported: 230400" |
+| USB chip | Silicon Labs CP2102, `10c4:ea60`, `serial == 0001` | `udevadm info` |
+| Scan rate | 10.0 Hz (`scan_time` 0.09999 s) | `/scan` |
+| Points per revolution | 504 (`angle_increment` 0.012467 rad = 0.714 deg) | `/scan` |
+| Point rate | 5040 points/s (`time_increment` 0.0001984 s) | `/scan` |
+| Angle range | 0 .. 2*pi (0-360 deg, not -180..+180) | `/scan` |
+| Range | `range_min` 0.02 m, `range_max` 25.0 m | `/scan` |
+| Rotation direction | Counterclockwise (driver default `laser_scan_dir`) | launch output |
+| Topic / frame | `scan` / `base_laser` | driver default |
+
+Notes:
+- The 25 m `range_max` is what the driver advertises, not a usable sensing range.
+  Cap this to a realistic value in the Nav2 costmap config, otherwise far-field
+  noise ends up in the map.
+- The stock `ld19.launch.py` publishes a **placeholder** static TF
+  `base_link -> base_laser` at z = 0.18 m. This gets replaced by the real URDF
+  in phase 2c.
+- `serial == 0001` is generic, and the RoboESP32 likely uses the same CP2102
+  (`10c4:ea60`). If both devices are attached at once, the udev rule must bind by
+  physical USB port (`KERNELS==...`) instead of VID:PID/serial.
+
+### Chassis and drivetrain geometry
+Measured 2026-08-06, see `pics/räder-unten.jpg` and `pics/getriebe.jpg`.
+
+| Property | Value | Note |
+| :--- | :--- | :--- |
+| Wheel diameter | 75 mm | radius 37.5 mm |
+| Wheel circumference | 235.6 mm | pi * 75 mm |
+| Wheel width | 30 mm | |
+| Track width (geometric) | 170 mm | wheel centre to wheel centre |
+| Wheelbase | 85 mm | front to rear axle, same side |
+| Chassis base plate | 290 mm long x 250 mm wide | |
+| Front axle position | 160 mm from the front edge | LIDAR sits directly above it |
+| Rear axle position | 245 mm from the front edge | = 45 mm from the rear edge |
+| Wheel revolutions per 360 deg robot turn | 2.27 | geometric, ignores scrub |
+| `base_link` height above `base_footprint` | 37.5 mm | = wheel radius |
+
+The wheelbase-to-track ratio is 0.5, which is short. Scrub during in-place
+rotation is therefore mild — expect the effective wheel separation correction to
+be a few percent, not the tens of percent that long-wheelbase skid-steer
+platforms need.
+
+### Frame origin and costmap footprint
+`base_link` sits on the centreline at the **midpoint between the two axles**,
+at wheel-axle height — that is the point the robot actually rotates about.
+
+    origin = (160 + 245) / 2 = 202.5 mm from the front edge
+
+Everything below is relative to that origin, x forward, y left (ROS REP-103):
+
+| Reference | x | y |
+| :--- | ---: | ---: |
+| Front edge of base plate | +0.2025 m | — |
+| Rear edge of base plate | -0.0875 m | — |
+| Left / right edge | — | +/-0.125 m |
+| LIDAR (`base_laser`) | **+0.0425 m** | 0.0 m |
+
+Nav2 costmap footprint polygon:
+
+    [[0.2025, 0.125], [0.2025, -0.125], [-0.0875, -0.125], [-0.0875, 0.125]]
+
+Use the polygon, not a circle. The origin is far off-centre, so a circular
+footprint would need a 0.238 m radius — about 5 cm of pointless inflation
+compared with the 0.191 m a chassis-centred circle would need.
+
+Note the robot rotates about a point well towards the rear. The front corners
+sweep a much larger arc than the rear ones, which matters for rotation clearance
+in tight spots.
+
+**Drivetrain layout: skid steer, not a simple two-wheel differential drive.**
+Four wheels in tandem pairs (two per side, front and rear), plus a swivel caster
+with twin rollers in the centre. Both wheels of a side are coupled through the
+gearbox, so there is one degree of freedom per side — a differential drive model
+still applies, but with an important caveat:
+
+> During in-place rotation the front and rear wheel of one side run on different
+> radii and are dragged sideways across the floor. The **geometric track width of
+> 170 mm is therefore the wrong value for the odometry model** — it will
+> over-report rotation. The effective wheel separation is typically 10-50 % larger
+> and depends on wheelbase and floor surface (carpet differs from tile).
+> It cannot be measured, only calibrated: rotate the robot ten full turns in
+> place and tune the parameter until reported and actual rotation agree.
+> Straight-line driving is unaffected. See phase 2d.
+
+### Still to be measured (needed for URDF and kinematics)
+- [ ] **Height of the LIDAR scan plane above the floor.** The `base_laser` z in
+      the URDF is that height minus 0.0375 m (the `base_link` height). The stock
+      `ld19.launch.py` uses 0.18 m, but that is the vendor's placeholder, not a
+      measurement.
+- [ ] **Zero-angle orientation of the LIDAR housing** — determines the yaw of
+      `base_laser`. Get it from the bench test: put an object in a known
+      direction and see where it shows up in RViz2.
+- [ ] Tooth count of the final drive gear (encoder resolution, see phase 3)
+
+### To confirm
+- [ ] "Front" = the caster end. The geometry above assumes the edge that is
+      160 mm from the LIDAR is the robot's front, i.e. it drives caster-first
+      and the driven wheels trail. If it is the other way round, x flips sign.
+
 ### Wiring Map (Planned/Implemented)
 | component | Pin A | Pin B | Note |
 | :--- | :--- | :--- | :--- |
