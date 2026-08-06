@@ -23,7 +23,10 @@
 - [ ] SLAM mit `rf2o` + `slam_toolbox`
 - [ ] Nav2 in Betrieb nehmen
 
-## Phase 3: Encoder nachrüsten
+## Phase 3: Nahbereichssensorik und Encoder
+- [ ] IR- oder Sonarsensoren vorne tief nachrüsten (der LIDAR sieht nichts
+      unter 40 cm) und über den Range-Sensor-Layer in die Nav2-Costmap geben
+
 - [ ] Halterungen für Gabellichtschranken konstruieren und drucken
 - [ ] Zähnezahl des Abtriebszahnrads bestimmen
 - [ ] Encoder auswerten (`countio.Counter`), Telemetriefelder sind vorbereitet

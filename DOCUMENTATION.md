@@ -76,9 +76,22 @@ Everything below is relative to that origin, x forward, y left (ROS REP-103):
 | Left / right edge | — | +/-0.125 m |
 | LIDAR (`base_laser`) | **+0.0425 m** | 0.0 m |
 
-LIDAR mounting: on top of the head dome, scan plane **0.40 m above the floor**.
-In the URDF that is `base_laser` z = 0.40 - 0.0375 = **0.3625 m** above
-`base_link`.
+LIDAR mounting: on top of the head dome, scan plane **0.40 m above the floor**,
+housing upright and **not rotated — yaw = 0**, its zero angle pointing forward
+along +x. In the URDF that is `base_laser` at z = 0.40 - 0.0375 = **0.3625 m**
+above `base_link`, rpy 0 0 0.
+
+The head dome is **rigid** relative to the body, so `base_laser` is a genuine
+static transform.
+
+Confirmed layout: **both driven axles are at the rear, the swivel caster is at
+the front.** The robot therefore drives caster-first. Two consequences:
+- It rotates about a point 202.5 mm behind the front edge, so the head and
+  front tray sweep a wide arc — watch rotation clearance in tight spots.
+- A *leading* caster is less directionally stable than a trailing one. Expect a
+  slight veer at the start of a forward run while the caster swings around.
+  During the duty-to-speed calibration, let the caster settle before measuring
+  and run each step twice.
 
 Consequences of that height, relevant for Nav2 tuning:
 - Nothing below 0.40 m is visible — thresholds, cables, shoes, toys. The robot
@@ -114,22 +127,22 @@ still applies, but with an important caveat:
 > place and tune the parameter until reported and actual rotation agree.
 > Straight-line driving is unaffected. See phase 2d.
 
-### Still to be measured (needed for URDF and kinematics)
-- [ ] **Zero-angle orientation of the LIDAR housing** — determines the yaw of
-      `base_laser`. Get it from the bench test: put an object in a known
-      direction and see where it shows up in RViz2. Note the stock
-      `ld19.launch.py` publishes a placeholder TF at z = 0.18 m; that gets
-      replaced by our URDF.
+### Open items
+- [ ] Verify the LIDAR yaw once mounted: a flat wall straight ahead must appear
+      straight ahead in RViz2. The assumed yaw is 0, but a housing mounted a few
+      degrees off skews every map.
 - [ ] Tooth count of the final drive gear (encoder resolution, see phase 3)
 
-### To confirm
-- [ ] **Is the head dome rigid relative to the body?** The LIDAR mounts on top
-      of it. If the head can rotate, `base_laser` moves relative to `base_link`
-      and the whole TF tree becomes wrong. A rotating head would have to be
-      fixed in place, or fitted with an encoder — avoid the latter.
-- [ ] "Front" = the caster end. The geometry above assumes the edge that is
-      160 mm from the LIDAR is the robot's front, i.e. it drives caster-first
-      and the driven wheels trail. If it is the other way round, x flips sign.
+### Planned: low obstacle detection
+The LIDAR cannot go lower than 0.40 m, so obstacles below that are invisible.
+The plan is to add IR distance or sonar sensors low at the front later.
+
+Integration path when that happens: publish them as `sensor_msgs/Range` and
+feed them into the Nav2 costmap through the **`nav2_costmap_2d` range sensor
+layer**, which is built for exactly this. They do not belong in the `/scan`
+topic — mixing sensors of different geometry into one LaserScan breaks SLAM.
+The serial protocol has room for extra telemetry fields if the sensors end up on
+the motor board rather than on the Pi.
 
 ### Wiring Map (Planned/Implemented)
 | component | Pin A | Pin B | Note |
