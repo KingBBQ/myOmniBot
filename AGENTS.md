@@ -26,7 +26,17 @@ schlaegt der Upload mit einem Timeout fehl.
 
 - `src/code.py` - Quelle der Wahrheit; wird als `/code.py` aufs Board gespielt.
   Nie direkt auf dem Board editieren, sonst laufen die Staende auseinander.
+  Seit Phase 2 ein serieller Motorknoten, kein Webserver mehr.
+- `src/hardware.py` - Pinbelegung, PWM-Frequenz und serielle Verbindung je Board.
+  Der Boardwechsel RoboESP32 <-> MakerPi RP2040 aendert nur diese Datei.
+- `src/boot.py` - nur fuer Boards mit nativem USB (RP2040), schaltet
+  `usb_cdc.data` frei. Auf dem ESP32 unnoetig.
+- `src/code_webremote.py` - die Webserver-Handsteuerung aus Phase 1, als
+  Rueckfallebene aufgehoben.
 - `tools/upload.py` - REPL-Uploader (nutzt pyserial aus `.venv`).
+- `tools/serial_console.py` - Testclient fuer den Motorknoten: fahren, pingen,
+  Telemetrie mitlesen und die Kennlinie kalibrieren, alles ohne ROS.
+- `docs/ros2-setup.md` - ROS2 Jazzy und LIDAR-Inbetriebnahme, Schritt fuer Schritt.
 - `firmware/`, `pics/` - Firmware-Images und Fotos.
 - `specs/` - Datenblaetter Dritter, nur lokal vorhanden (per `.gitignore`
   ausgeschlossen). Auf einem frischen Klon fehlt der Ordner.
@@ -49,11 +59,31 @@ nicht im Repo. CircuitPython verbindet sich damit automatisch beim Start.
 
 ## Hardware-Stand (Vorsicht beim Testen)
 
-- Motoren sind laut `TODO.md` **noch nicht verkabelt**, die PPTC-Sicherungen
-  (1A - 1.2A pro Kanal) sind **noch nicht verbaut**. Fahrbefehle sind daher
-  ungetestet - der Motortreiber vertraegt nur 1A Dauerlast und brennt bei
-  blockierten Motoren durch.
-- `SPEED` ist deshalb auf 0.6 gedrosselt; erst nach Einbau der Sicherungen erhoehen.
-- Pinbelegung und Hardware-Details stehen in `DOCUMENTATION.md`.
-- Ob der Omnibot Panzerlenkung (zwei Antriebsmotoren) oder Antrieb + Lenkmotor
-  hat, ist noch nicht verifiziert - `DRIVE_MODE` deckt beide Faelle ab.
+- Motoren sind verkabelt, Phase 1 ist gefahren. Die PPTC-Sicherungen
+  (1A - 1.2A pro Kanal) sind **noch nicht verbaut** - der Motortreiber vertraegt
+  nur 1A Dauerlast und brennt bei blockierten Motoren durch. Deshalb nicht
+  dauerhaft mit voller Leistung gegen ein Hindernis fahren.
+- Der Antrieb ist **Skid-Steer**: vier Raeder in Tandempaaren, zwei pro Seite,
+  je Seite ein Motor, dazu eine freie Schwenkrolle mittig. Das Differentialmodell
+  gilt, aber die geometrische Spurweite taugt nicht fuers Odometriemodell -
+  Begruendung und Kalibriervorschrift stehen in `DOCUMENTATION.md`.
+- `DEADBAND = 0.2` in `code.py`: unter 20 Prozent brummen die Motoren nur und
+  ziehen Blockierstrom. Solche Sollwerte werden auf 0 gesetzt. Der Host darf
+  gar nicht erst dort hinein kommandieren.
+- Chassisgeometrie, LIDAR-Messwerte und Pinbelegung stehen in `DOCUMENTATION.md`.
+
+## Firmware am Board testen
+
+Der Motorknoten haengt beim RoboESP32 an **UART2 (GPIO17 = TX, GPIO16 = RX,
+Grove-Port 1)**, nicht am USB-Port des Boards - der ist die REPL. Zum Testen
+am Schreibtisch braucht es also einen USB-TTL-Adapter (3,3 V) an diesen Pins:
+
+```bash
+.venv/bin/python tools/upload.py src/hardware.py /hardware.py
+.venv/bin/python tools/upload.py src/code.py /code.py --run
+.venv/bin/python tools/serial_console.py /dev/ttyUSB0
+```
+
+Beim MakerPi RP2040 entfaellt der Adapter: dort zusaetzlich `src/boot.py` aufs
+Board spielen, einmal Reset druecken, und der Datenkanal liegt als zweites
+CDC-Geraet am selben USB-Kabel.
