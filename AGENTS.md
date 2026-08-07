@@ -36,7 +36,10 @@ schlaegt der Upload mit einem Timeout fehl.
 - `tools/upload.py` - REPL-Uploader (nutzt pyserial aus `.venv`).
 - `tools/serial_console.py` - Testclient fuer den Motorknoten: fahren, pingen,
   Telemetrie mitlesen und die Kennlinie kalibrieren, alles ohne ROS.
-- `docs/ros2-setup.md` - ROS2 Jazzy und LIDAR-Inbetriebnahme, Schritt fuer Schritt.
+- `docs/ros2-setup.md` - ROS2 Jazzy und LIDAR-Inbetriebnahme in der VM, Schritt
+  fuer Schritt.
+- `docs/pi-setup.md` - der Bordrechner: Ubuntu Server 24.04 arm64 und ROS2 Jazzy
+  auf dem Raspberry Pi, udev-Regeln fuer die beiden Serial-Adapter.
 - `firmware/`, `pics/` - Firmware-Images und Fotos.
 - `specs/` - Datenblaetter Dritter, nur lokal vorhanden (per `.gitignore`
   ausgeschlossen). Auf einem frischen Klon fehlt der Ordner.

@@ -17,7 +17,9 @@
 - [x] Serielles Protokoll und Motorknoten-Firmware (`src/code.py`, `src/hardware.py`)
 - [ ] Firmware am Board testen (`tools/serial_console.py`) - braucht USB-TTL-Adapter
 - [ ] Kennlinie Duty -> m/s messen (Messläufe `g` und `r` im serial_console)
-- [ ] Raspberry Pi 4 aufsetzen (Ubuntu Server 24.04 arm64)
+- [ ] Raspberry Pi 4 aufsetzen (Ubuntu Server 24.04 arm64, `docs/pi-setup.md`)
+      Achtung: **nicht** Ubuntu 26.04 - dort gibt es nur ROS2 Lyrical, und
+      Nav2/slam_toolbox sind dafuer noch nicht gebaut (Stand 08/2026)
 - [ ] LIDAR montieren, Montageoffset ausmessen
 - [ ] ROS2-Pakete: `omnibot_base`, `omnibot_description`, `omnibot_bringup`
 - [ ] SLAM mit `rf2o` + `slam_toolbox`
