@@ -18,6 +18,10 @@ Tasten:
     t                  Telemetrieausgabe an/aus
     q / Strg-C         beenden (sendet vorher Stopp)
 
+Steht in der Telemetrie HANDBETRIEB, hat die Fernbedienung das Sagen und alle
+Fahrbefehle von hier werden verworfen - das ist kein Fehler, sondern Absicht.
+Zurueck geht es nur ueber die Start/Stop-Taste der Fernbedienung.
+
 Die Messlaeufe fahren eine feste Zeit statt einer festen Strecke: eine Zeit
 per Software zu stoppen ist genauer, als von Hand eine Stoppuhr zu druecken.
 Danach die zurueckgelegte Strecke messen und durch die Zeit teilen.
@@ -45,6 +49,28 @@ POWER_MIN = 200  # unter dem Totband in code.py hat Senden keinen Zweck
 POWER_MAX = 1000
 
 ARROWS = {"[A": "up", "[B": "down", "[C": "right", "[D": "left"}
+
+# Flags aus der Telemetrie, siehe src/code.py
+FLAGS = (
+    (1, "totmann"),  # wegen Timeout gestoppt
+    (2, "totband-l"),
+    (4, "totband-r"),
+    (8, "HANDBETRIEB"),  # die Fernbedienung faehrt, unsere V werden verworfen
+    (16, "funk"),  # Fernbedienung ist in Reichweite
+)
+
+
+def decode_flags(line):
+    """Telemetriezeile um die Klartextnamen der Flags ergaenzen."""
+    parts = line.split()
+    if len(parts) != 7:
+        return line
+    try:
+        value = int(parts[6])
+    except ValueError:
+        return line
+    names = [name for bit, name in FLAGS if value & bit]
+    return line + ("  [" + " ".join(names) + "]" if names else "")
 
 
 def read_keys():
@@ -90,8 +116,10 @@ class Console:
             line = raw.decode("utf-8", "replace").strip()
             if not line or line == "ok":
                 continue
-            if line.startswith("t ") and not self.show_telemetry:
-                continue
+            if line.startswith("t "):
+                if not self.show_telemetry:
+                    continue
+                line = decode_flags(line)
             sys.stdout.write("\r\033[K<< {}\r\n".format(line))
 
     # ----------------------------------------------------------------- Tasten

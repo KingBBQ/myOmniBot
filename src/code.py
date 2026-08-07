@@ -12,11 +12,29 @@
 #     V <links> <rechts>   Radsollwerte, jeweils -1000..1000 (Promille Duty)
 #     S                    Sofortstopp
 #     P                    Ping
+#     M                    Handbetrieb umschalten (nur von der Fernbedienung)
+#     A <n>                Sondertaste n (Sound) - noch ohne Wirkung
 #
 #   Board -> Host
 #     ok                                            Quittung auf V und S
 #     id omnibot <board> <protokollversion>         Antwort auf P
 #     t <ms> <l> <r> <ticks_l> <ticks_r> <flags>    Telemetrie, 10 Hz
+#
+# Dieselben Zeilen kommen ueber **zwei** Wege herein: die serielle Leitung vom
+# Companion Computer und ESP-NOW von der Fernbedienung (src/code_remote.py).
+# Es faehrt immer nur eine Quelle:
+#
+#   Handbetrieb aus (Start)  - der Companion Computer faehrt, V von der
+#                              Fernbedienung wird verworfen
+#   Handbetrieb an           - umgekehrt
+#
+# Umgeschaltet wird ausschliesslich mit der Start/Stop-Taste der Fernbedienung.
+# Der Companion Computer kann sich die Kontrolle also nicht selbst zurueckholen -
+# wer die Fernbedienung in der Hand hat, behaelt sie. Faellt die Fernbedienung
+# aus, bleibt der Roboter im Handbetrieb stehen; das ist Absicht und sicherer,
+# als ihn unerwartet wieder autonom losfahren zu lassen.
+#
+# S stoppt dagegen **immer**, egal aus welcher Quelle.
 #
 # Unbekannte oder kaputte Zeilen werden stillschweigend verworfen - eine
 # verstuemmelte Zeile darf den Roboter niemals in Fahrt setzen.
@@ -29,7 +47,7 @@ import pwmio
 
 import hardware
 
-PROTO_VERSION = 1
+PROTO_VERSION = 2  # 2: M und A dazugekommen, zweite Befehlsquelle per ESP-NOW
 
 # Not-Aus. Bei autonomer Fahrt muss das kurz sein - die 1,5 s der alten
 # Webserver-Firmware waeren hier viel zu lang. Der Host sendet mit 20 Hz,
@@ -52,6 +70,8 @@ INVERT_RIGHT = False
 FLAG_DEADMAN = 1  # Motoren wegen Timeout gestoppt
 FLAG_DEADBAND_L = 2
 FLAG_DEADBAND_R = 4
+FLAG_MANUAL = 8  # Fernbedienung hat das Sagen, serielle V werden verworfen
+FLAG_REMOTE = 16  # Fernbedienung ist in Reichweite
 
 # Augen: je eine rote LED mit eigenem 100-Ohm-Vorwiderstand gegen GND.
 EYE_FADE_IN = 2.0
@@ -190,14 +210,20 @@ def drive(left, right):
     moving = motor_left.applied != 0.0 or motor_right.applied != 0.0
 
 
-def handle(line):
-    global last_command, deadman_tripped
+def handle(line, source):
+    """Eine Protokollzeile ausfuehren. source ist "link" oder "remote"."""
+    global last_command, deadman_tripped, manual
 
     if not line:
         return
     kind = line[0]
 
     if kind == "V":
+        # Nur die gerade aktive Quelle darf fahren. Die andere wird verworfen,
+        # ohne die Totmannschaltung zu fuettern - sonst wuerde ein weiter
+        # sendender Companion Computer den Handbetrieb am Leben halten.
+        if (source == "remote") != manual:
+            return
         parts = line.split()
         if len(parts) != 3:
             return
@@ -209,20 +235,44 @@ def handle(line):
         drive(left / 1000.0, right / 1000.0)
         last_command = time.monotonic()
         deadman_tripped = False
-        write("ok\n")
+        if source == "link":
+            write("ok\n")
 
     elif kind == "S":
+        # Stopp gilt immer, aus jeder Quelle.
         drive(0.0, 0.0)
         last_command = time.monotonic()
         deadman_tripped = False
-        write("ok\n")
+        if source == "link":
+            write("ok\n")
 
     elif kind == "P":
         write("id omnibot {} {}\n".format(hardware.BOARD, PROTO_VERSION))
 
+    elif kind == "M":
+        # Betriebsart umschalten - bewusst nur von der Fernbedienung aus.
+        if source != "remote":
+            return
+        manual = not manual
+        drive(0.0, 0.0)  # Quellenwechsel nie im Fahren
+        last_command = time.monotonic()
+        deadman_tripped = False
+        print("Handbetrieb:", "an" if manual else "aus")
+
+    elif kind == "A":
+        # Sondertasten der Fernbedienung. Der Lautsprecher des Omnibot ist noch
+        # nicht angeschlossen, deshalb bleibt es vorerst bei der Ausgabe.
+        parts = line.split()
+        if len(parts) == 2:
+            print("Sondertaste", parts[1])
+
 
 def telemetry(now):
     flags = deadband_flags | (FLAG_DEADMAN if deadman_tripped else 0)
+    if manual:
+        flags |= FLAG_MANUAL
+    if remote and remote.connected(now):
+        flags |= FLAG_REMOTE
     # ms laeuft nach gut vier Stunden ueber - der Host nutzt den Wert nur, um
     # Luecken zu erkennen, nicht als absolute Zeit.
     write(
@@ -260,8 +310,21 @@ ticks_right = 0
 deadband_flags = 0
 deadman_tripped = False
 moving = False
+manual = False  # True: die Fernbedienung faehrt, der Companion Computer nicht
 last_command = time.monotonic()
 last_telemetry = last_command
+
+# Ohne Fernbedienung laeuft der Motorknoten unveraendert weiter - fehlendes
+# espnow-Modul oder abgeschaltetes Funkmodul duerfen den Fahrbetrieb am
+# seriellen Link nicht verhindern.
+try:
+    import espnow_link
+
+    remote = espnow_link.RemoteLink()
+    print("ESP-NOW bereit - MAC:", ":".join("%02x" % b for b in remote.mac))
+except Exception as err:  # noqa - alles, was Import oder Funkinit wirft
+    print("Fernbedienung nicht verfuegbar:", err)
+    remote = None
 
 print("Omnibot Motorknoten bereit - Board:", hardware.BOARD)
 
@@ -269,7 +332,12 @@ while True:
     now = time.monotonic()
 
     for line in reader.lines():
-        handle(line)
+        handle(line, "link")
+
+    if remote:
+        for line in remote.lines():
+            handle(line, "remote")
+        remote.status(now, manual, moving)
 
     # Totmannschaltung: stoppen, wenn der Host sich nicht mehr meldet
     if moving and now - last_command > DEADMAN_TIMEOUT:

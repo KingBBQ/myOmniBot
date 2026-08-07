@@ -31,6 +31,12 @@ schlaegt der Upload mit einem Timeout fehl.
   Der Boardwechsel RoboESP32 <-> MakerPi RP2040 aendert nur diese Datei.
 - `src/boot.py` - nur fuer Boards mit nativem USB (RP2040), schaltet
   `usb_cdc.data` frei. Auf dem ESP32 unnoetig.
+- `src/espnow_link.py` - ESP-NOW-Gegenstelle auf dem Roboter. Liefert die
+  Pakete der Fernbedienung als Protokollzeilen an dieselbe `handle()`.
+- `src/code_remote.py` - Fernbedienung auf dem LOLIN S2 Mini. Kommt als
+  `/code.py` aufs CIRCUITPY-Laufwerk, nicht ueber `tools/upload.py`.
+- `src/code_pinscan.py` - Pin-Scanner fuer den S2 Mini, mit dem die
+  Tastenbelegung durchgeklingelt wurde. Aufgehoben fuer den naechsten Umbau.
 - `src/code_webremote.py` - die Webserver-Handsteuerung aus Phase 1, als
   Rueckfallebene aufgehoben.
 - `tools/upload.py` - REPL-Uploader (nutzt pyserial aus `.venv`).
@@ -59,6 +65,14 @@ nicht im Repo. CircuitPython verbindet sich damit automatisch beim Start.
   nicht in der Ansteuerungslogik.
 - Umlaute in Quelltext-Kommentaren vermeiden (ae/oe/ue), sonst gibt es beim
   Uebertragen ueber die REPL Encoding-Aerger.
+- ESP-NOW: `funk.send(msg)` **ohne** zweites Argument scheitert mit
+  `ESP-NOW error 0x3069` (`ESP_ERR_ESPNOW_NOT_FOUND`), auch wenn der Peer in
+  `funk.peers` steht. Der Peer muss mitgegeben werden: `funk.send(msg, peer)`.
+  Am Board verifiziert mit CircuitPython 10.2.1 - die API-Doku legt anderes nahe.
+- ESP-NOW und WLAN teilen sich den Funkkanal. Verbindet sich ein Board per
+  `settings.toml` in ein WLAN, uebernimmt es den Kanal des Accesspoints und
+  hoert die Gegenstelle nicht mehr. Fuer den Fahrbetrieb gehoeren die
+  WLAN-Zugangsdaten deshalb aus der `settings.toml` des RoboESP32 heraus.
 
 ## Hardware-Stand (Vorsicht beim Testen)
 
