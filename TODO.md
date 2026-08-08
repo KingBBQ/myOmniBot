@@ -12,10 +12,17 @@
       `src/code_pinscan.py` durchgeklingelt
 - [x] ESP-NOW Fernsteuerung geschrieben: `src/code_remote.py` (Sender, laeuft
       auf dem S2 Mini) und `src/espnow_link.py` (Empfaenger im Motorknoten)
-- [ ] `code.py` und `espnow_link.py` auf den RoboESP32 spielen und die
-      Funkstrecke zum ersten Mal gegen echte Motoren testen
-- [ ] WLAN-Zugangsdaten aus der `settings.toml` des RoboESP32 entfernen,
-      sonst sitzt er auf dem Kanal des Accesspoints und hoert nichts
+- [x] `code.py` und `espnow_link.py` auf den RoboESP32 spielen und die
+      Funkstrecke zum ersten Mal gegen echte Motoren testen — fährt.
+      Gemessen: 1217 Pakete am Stück ohne Aussetzer, ~20 Hz, Sollwerte
+      ±600 (geradeaus) und ±500 (Drehung), also sicher über `DEADBAND`.
+      Auch `M` (Start/Stop) und `A 1` kommen an. Sender-MAC der
+      Fernbedienung: `cc:8d:a2:91:35:c2`
+- [x] WLAN-Zugangsdaten aus der `settings.toml` des RoboESP32 entfernen,
+      sonst sitzt er auf dem Kanal des Accesspoints und hoert nichts —
+      auskommentiert, Board meldet beim Start jetzt `Wi-Fi: off`. Wirksam
+      wird das erst nach einem **Hard**-Reset, ein Soft-Reboot liest die
+      `settings.toml` nicht neu
 - [x] Batterie beschafft (Blei-Zelle)
 
 ## Phase 2: ROS2-Navigation mit LIDAR

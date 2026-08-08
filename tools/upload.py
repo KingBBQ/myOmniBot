@@ -58,9 +58,19 @@ def main():
 
     port = serial.Serial(args.port, args.baud, timeout=1)
     try:
-        # Laufendes code.py anhalten und in die Raw-REPL wechseln
+        # Laufendes code.py anhalten und in die Raw-REPL wechseln. Auf den
+        # normalen Prompt warten statt fest zu schlafen: haengt das Board in
+        # einem blockierenden Aufruf (der Webserver etwa steht in accept()),
+        # dauert das Ctrl-C deutlich laenger als 0,3 s - und ein zu frueh
+        # gesendetes Ctrl-A geht dann verloren.
         port.write(b"\x03\x03")
+        # Nach dem Abbruch steht da "Press any key to enter the REPL" - ohne
+        # diesen Tastendruck kommt nie ein Prompt. Am fertigen Prompt ist das
+        # Newline dagegen wirkungslos, also darf es immer raus.
         time.sleep(0.3)
+        port.write(b"\r\n")
+        read_until(port, b">>> ", timeout=10.0)
+        time.sleep(0.5)
         port.reset_input_buffer()
         port.write(b"\x01")
         # Banner und Prompt kommen zusammen an - in einem Rutsch lesen
