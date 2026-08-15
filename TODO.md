@@ -29,7 +29,8 @@
 - [x] LDROBOT STL-19P am PC in einer Ubuntu-24.04-VM getestet (`docs/ros2-setup.md`)
 - [x] Chassisgeometrie vermessen (siehe `DOCUMENTATION.md`)
 - [x] Serielles Protokoll und Motorknoten-Firmware (`src/code.py`, `src/hardware.py`)
-- [ ] Firmware am Board testen (`tools/serial_console.py`) - braucht USB-TTL-Adapter
+- [ ] Firmware am Board testen (`tools/serial_console.py`) - ueber den GPIO-UART
+      des Pi auf `/dev/ttyAMA0`, USB-TTL-Adapter nur noch fuer Tests ohne Pi
 - [ ] Kennlinie Duty -> m/s messen (Messläufe `g` und `r` im serial_console)
 - [ ] Raspberry Pi 4 aufsetzen (Ubuntu Server 24.04 arm64, `docs/pi-setup.md`)
       Achtung: **nicht** Ubuntu 26.04 - dort gibt es nur ROS2 Lyrical, und
@@ -54,11 +55,11 @@
 - [ ] Effektive Spurweite kalibrieren (Skid-Steer-Schlupf, siehe `DOCUMENTATION.md`)
 
 ## Einkaufsliste
-- [ ] PPTC Sicherung (Resettable Fuse) 1A - 1.2A (für jeden Motorkanal)
-- [ ] USB-TTL-Adapter 3,3V (CP2102/CH340) - für den Firmwaretest am RoboESP32,
+- [x] PPTC Sicherung (Resettable Fuse) 1A - 1.2A (für jeden Motorkanal)
+- [x] USB-TTL-Adapter 3,3V (CP2102/CH340) - für den Firmwaretest am RoboESP32,
       da UART2 auf GPIO16/17 liegt und nicht über den USB-Port des Boards geht
 - [x] Gabellichtschranke H2010 mit LM393-Komparator (1 Stück vorhanden)
-- [ ] Zweite H2010 mit LM393 (eine je Seite). Kein anderer Typ nötig — die
+- [x] Zweite H2010 mit LM393 (eine je Seite). Kein anderer Typ nötig — die
       geprüften Alternativen sind gleich gut oder schlechter, siehe
       `DOCUMENTATION.md`
-- [ ] Raspberry Pi 4 + USB-Powerbank
+- [x] Raspberry Pi 4 + USB-Powerbank

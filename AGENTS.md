@@ -80,7 +80,9 @@ nicht im Repo. CircuitPython verbindet sich damit automatisch beim Start.
   (1A - 1.2A pro Kanal) sind **noch nicht verbaut** - der Motortreiber vertraegt
   nur 1A Dauerlast und brennt bei blockierten Motoren durch. Deshalb nicht
   dauerhaft mit voller Leistung gegen ein Hindernis fahren.
-- Der Antrieb ist **Skid-Steer**: vier Raeder in Tandempaaren, zwei pro Seite,
+- Antrieb: **Skid-Steer, fährt caster-first** (Schwenkrolle vorne, Antrieb hinten).
+  Vorsicht beim Rotieren: Die Front schwingt weite Boegen aus.
+- Der Antrieb ist Skid-Steer: vier Raeder in Tandempaaren, zwei pro Seite,
   je Seite ein Motor, dazu eine freie Schwenkrolle mittig. Das Differentialmodell
   gilt, aber die geometrische Spurweite taugt nicht fuers Odometriemodell -
   Begruendung und Kalibriervorschrift stehen in `DOCUMENTATION.md`.
@@ -89,11 +91,26 @@ nicht im Repo. CircuitPython verbindet sich damit automatisch beim Start.
   gar nicht erst dort hinein kommandieren.
 - Chassisgeometrie, LIDAR-Messwerte und Pinbelegung stehen in `DOCUMENTATION.md`.
 
+## ROS2 & Bordrechner (Pi)
+
+- **OS:** Nur Ubuntu 24.04 arm64 verwenden. Ubuntu 26.04 vermeiden (ROS2 Jazzy /
+  Nav2/slam_toolbox Pakete fehlen dort noch).
+- **LIDAR:** `range_max` in der Nav2 costmap config manuell limitieren; die
+  advertised 25m des Treibers sind unrealistisch und erzeugen Rauschen.
+- Hardware: LIDAR Yaw ist nominal 0 (blickt nach +x), muss aber physisch
+  verifiziert werden, da Skews das Mapping ruinieren.
+
 ## Firmware am Board testen
 
 Der Motorknoten haengt beim RoboESP32 an **UART2 (GPIO17 = TX, GPIO16 = RX,
-Grove-Port 1)**, nicht am USB-Port des Boards - der ist die REPL. Zum Testen
-am Schreibtisch braucht es also einen USB-TTL-Adapter (3,3 V) an diesen Pins:
+Grove-Port 1)**, nicht am USB-Port des Boards - der ist die REPL (CH340,
+`1a86:7523`, `/dev/ttyUSB*`).
+
+Am Roboter geht diese Leitung direkt an den **GPIO-UART des Raspberry Pi**
+(Pin 8 = GPIO14/TXD an GPIO16, Pin 10 = GPIO15/RXD an GPIO17, Pin 6 = GND),
+dort also `/dev/ttyAMA0` - siehe `docs/pi-setup.md`, Abschnitt 6. Nur zum Testen
+am Schreibtisch ohne Pi braucht es einen USB-TTL-Adapter (3,3 V) an denselben
+Pins:
 
 ```bash
 .venv/bin/python tools/upload.py src/hardware.py /hardware.py

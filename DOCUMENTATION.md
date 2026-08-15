@@ -10,9 +10,19 @@ This project focuses on the modernization of a Tomy Omnibot 5402 robot, replacin
 - **Special Features:** Gripper, eye lights, built-in loudspeaker, and a legacy segment LCD display.
 
 ### Controller: Cytron RoboESP32
-- **MCU:** ESP32 (Xtensa Dual Core), flashed with CircuitPython 10.2.1.
+- **MCU:** ESP32 (Xtensa Dual Core), flashed with CircuitPython 10.2.1
+  (board ID `ESP32 Devkit V1 with ESP32`, station MAC `8c:94:df:b9:9c:5c` —
+  this is the ESP-NOW peer the handset talks to).
 - **Motor Driver:** Integrated driver supporting up to 1A continuous / 1.5A peak per channel.
 - **Connectivity:** Wi-Fi and Bluetooth.
+- **USB bridge:** CH340 (`1a86:7523`), exposed as `/dev/ttyUSB*`. This is the
+  CircuitPython **REPL** on UART0 — uploads and tracebacks only. The motor
+  protocol runs on **UART2 / Grove port 1** (GPIO17 = TX2, GPIO16 = RX2), which
+  is wired to the Raspberry Pi's GPIO UART, not through USB.
+- **Power path:** USB and VIN are diode-OR'd, and V<sub>motor</sub> follows the
+  higher source (datasheet rows 5-8). With the 6 V lead gel cell below ~5.6 V the
+  motors start drawing from whatever USB host is attached — do not leave a
+  powered USB cable connected during battery runs, or use a cable with VBUS cut.
 
 ### LIDAR: LDROBOT STL-19P (LD19 series)
 Verified 2026-08-06 on the Ubuntu 24.04 VM with `ldlidar_stl_ros2`, driver SDK v3.0.3.
@@ -36,9 +46,19 @@ Notes:
 - The stock `ld19.launch.py` publishes a **placeholder** static TF
   `base_link -> base_laser` at z = 0.18 m. This gets replaced by the real URDF
   in phase 2c.
-- `serial == 0001` is generic, and the RoboESP32 likely uses the same CP2102
-  (`10c4:ea60`). If both devices are attached at once, the udev rule must bind by
-  physical USB port (`KERNELS==...`) instead of VID:PID/serial.
+- `serial == 0001` is generic, so the serial number is useless for matching. The
+  RoboESP32 turned out to use a **CH340 (`1a86:7523`)**, not a CP2102 (verified
+  2026-08-15 with `udevadm info -q property`), so VID:PID *does* separate the two
+  devices and a `KERNELS==...` rule is only needed once a second CP2102 or a
+  second CH340 is attached:
+
+  ```
+  SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", SYMLINK+="ttyLIDAR"
+  SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="ttyREPL"
+  ```
+
+  CH340 is also exactly the chip `brltty` claims as a braille display, so
+  removing `brltty` is mandatory, not precautionary.
 
 ### Chassis and drivetrain geometry
 Measured 2026-08-06, see `pics/räder-unten.jpg` and `pics/getriebe.jpg`.
