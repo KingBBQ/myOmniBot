@@ -1,0 +1,152 @@
+<?xml version="1.0"?>
+<!--
+  Omnibot 5402 - Modell fuer TF, RViz2 und Nav2.
+
+  Alle Masse stammen aus DOCUMENTATION.md, Abschnitte "Chassis and drivetrain
+  geometry" und "Frame origin and costmap footprint". Was dort nicht vermessen
+  ist, steht unten als "geschaetzt" markiert und gehoert nachgemessen.
+
+  Der Ursprung von base_link liegt bewusst nicht in der Mitte der Grundplatte,
+  sondern auf der Mittellinie zwischen den beiden Achsen, auf Achshoehe - das
+  ist der Punkt, um den sich der Roboter tatsaechlich dreht. Die Grundplatte
+  ragt deshalb weit nach vorn und kaum nach hinten.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="omnibot">
+
+  <!-- ===================================================== vermessene Masse -->
+  <xacro:property name="wheel_radius" value="0.0375"/>
+  <xacro:property name="wheel_width"  value="0.030"/>
+  <xacro:property name="track"        value="0.170"/>   <!-- Radmitte zu Radmitte -->
+  <xacro:property name="wheelbase"    value="0.085"/>   <!-- Vorder- zu Hinterachse -->
+
+  <xacro:property name="plate_length" value="0.290"/>
+  <xacro:property name="plate_width"  value="0.250"/>
+  <xacro:property name="plate_thick"  value="0.008"/>
+
+  <!-- Kanten der Grundplatte relativ zu base_link -->
+  <xacro:property name="plate_front"  value="0.2025"/>
+  <xacro:property name="plate_rear"   value="-0.0875"/>
+  <xacro:property name="plate_x"      value="${(plate_front + plate_rear) / 2}"/>
+
+  <!-- LIDAR: Scanebene 0,40 m ueber dem Boden, direkt ueber der Vorderachse -->
+  <xacro:property name="laser_x"      value="0.0425"/>
+  <xacro:property name="laser_z"      value="${0.40 - wheel_radius}"/>
+
+  <!-- ============================================== geschaetzt, nicht gemessen -->
+  <!-- Die Schwenkrolle sitzt vorn auf der Mittellinie. Ihre Laengsposition ist
+       nie vermessen worden; sie hat keinen Einfluss auf Kinematik oder Costmap
+       und dient hier nur der Anschauung. -->
+  <xacro:property name="caster_x"     value="0.150"/>
+  <xacro:property name="caster_radius" value="0.020"/>
+  <!-- Aufbau (Rumpf, Kopfkuppel) grob, nur zur Orientierung in RViz2. -->
+  <xacro:property name="body_height"  value="0.30"/>
+
+  <material name="omnibot_white"><color rgba="0.90 0.90 0.88 1.0"/></material>
+  <material name="omnibot_dark"> <color rgba="0.15 0.15 0.17 1.0"/></material>
+  <material name="omnibot_blue"> <color rgba="0.20 0.40 0.80 1.0"/></material>
+
+  <xacro:macro name="dummy_inertial" params="mass">
+    <inertial>
+      <mass value="${mass}"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ============================================================== Rahmen -->
+
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="${plate_x} 0 0" rpy="0 0 0"/>
+      <geometry><box size="${plate_length} ${plate_width} ${plate_thick}"/></geometry>
+      <material name="omnibot_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="${plate_x} 0 0" rpy="0 0 0"/>
+      <geometry><box size="${plate_length} ${plate_width} ${plate_thick}"/></geometry>
+    </collision>
+    <xacro:dummy_inertial mass="2.0"/>
+  </link>
+
+  <!-- Aufbau: grob, damit man in RViz2 sieht, wo vorne ist -->
+  <link name="body_link">
+    <visual>
+      <origin xyz="0 0 ${body_height / 2}" rpy="0 0 0"/>
+      <geometry><box size="0.20 0.20 ${body_height}"/></geometry>
+      <material name="omnibot_white"/>
+    </visual>
+  </link>
+  <joint name="body_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="body_link"/>
+    <origin xyz="${laser_x} 0 ${plate_thick / 2}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- =============================================================== Raeder -->
+  <!-- Feste Gelenke, weil es noch keine Encoder gibt und damit keine
+       joint_states. Sobald die Lichtschranken laufen (Phase 3), werden hieraus
+       continuous joints und ein joint_state_publisher kommt dazu. -->
+  <xacro:macro name="wheel" params="name x y">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+        <material name="omnibot_blue"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry>
+      </collision>
+      <xacro:dummy_inertial mass="0.2"/>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}"/>
+      <origin xyz="${x} ${y} 0" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel name="wheel_front_left"  x="${ wheelbase / 2}" y="${ track / 2}"/>
+  <xacro:wheel name="wheel_front_right" x="${ wheelbase / 2}" y="${-track / 2}"/>
+  <xacro:wheel name="wheel_rear_left"   x="${-wheelbase / 2}" y="${ track / 2}"/>
+  <xacro:wheel name="wheel_rear_right"  x="${-wheelbase / 2}" y="${-track / 2}"/>
+
+  <!-- ======================================================== Schwenkrolle -->
+  <link name="caster">
+    <visual>
+      <geometry><sphere radius="${caster_radius}"/></geometry>
+      <material name="omnibot_dark"/>
+    </visual>
+    <xacro:dummy_inertial mass="0.05"/>
+  </link>
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="caster"/>
+    <origin xyz="${caster_x} 0 ${caster_radius - wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- =============================================================== LIDAR -->
+  <!-- Gehaeuse aufrecht, Nullwinkel nach +x, also yaw = 0. Das ist die
+       Annahme aus DOCUMENTATION.md und noch nicht am montierten Geraet
+       geprueft - ein paar Grad Schraeglage verziehen jede Karte. -->
+  <link name="base_laser">
+    <visual>
+      <geometry><cylinder radius="0.019" length="0.035"/></geometry>
+      <material name="omnibot_dark"/>
+    </visual>
+    <xacro:dummy_inertial mass="0.1"/>
+  </link>
+  <joint name="base_laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_laser"/>
+    <origin xyz="${laser_x} 0 ${laser_z}" rpy="0 0 0"/>
+  </joint>
+
+</robot>

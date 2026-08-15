@@ -1,0 +1,36 @@
+# Parameter des Motorknotens. Die Zahlen stammen aus der Messreihe vom
+# 15.08.2026, Herleitung in DOCUMENTATION.md.
+omnibot_base:
+  ros__parameters:
+    port: /dev/ttyAMA0
+    baudrate: 115200
+
+    # Effektive Spurweite. Gemessen ueber b_eff = 2v/omega, ergab ~165 mm bei
+    # 170 mm geometrisch - der Schlupfaufschlag, den Skid-Steer sonst braucht,
+    # ist hier vernachlaessigbar. Feinabgleich spaeter ueber zehn Umdrehungen.
+    wheel_separation: 0.170
+
+    # Untere Grenze der gueltigen Kennlinie. Darunter kriecht der Roboter und
+    # das lineare Modell stimmt nicht mehr.
+    min_duty: 400
+    max_duty: 1000
+
+    # Der Totmann im Board greift nach 0,3 s. 20 Hz sind sechs Pakete Reserve.
+    send_rate: 20.0
+    cmd_vel_timeout: 0.5
+
+    # Das Board sendet Telemetrie mit 10 Hz. Bleibt sie laenger aus, haengt es.
+    telemetry_timeout: 1.0
+
+    # Nav2 in Jazzy schickt per Default ein unstamped Twist. Auf true stellen,
+    # wenn enable_stamped_cmd_vel gesetzt wird.
+    use_stamped_cmd_vel: false
+
+    publish_tf: true
+    odom_frame: odom
+    base_frame: base_footprint
+
+    # Koppelnavigation ohne Encoder: bewusst pessimistisch, damit SLAM dem
+    # LIDAR mehr glaubt als der Odometrie.
+    odom_covariance_xy: 0.05
+    odom_covariance_yaw: 0.10

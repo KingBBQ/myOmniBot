@@ -46,6 +46,10 @@ schlaegt der Upload mit einem Timeout fehl.
   fuer Schritt.
 - `docs/pi-setup.md` - der Bordrechner: Ubuntu Server 24.04 arm64 und ROS2 Jazzy
   auf dem Raspberry Pi, udev-Regeln fuer die beiden Serial-Adapter.
+- `ros2/` - die drei ROS2-Pakete (`omnibot_base`, `omnibot_description`,
+  `omnibot_bringup`). Liegen im Repo, kommen per Symlink nach `~/ros2_ws/src`.
+  Details in `ros2/README.md`. **Nicht mit `src/` verwechseln** - dort liegt die
+  Firmware fuers Board, hier der Code fuer den Bordrechner.
 - `firmware/`, `pics/` - Firmware-Images und Fotos.
 - `specs/` - Datenblaetter Dritter, nur lokal vorhanden (per `.gitignore`
   ausgeschlossen). Auf einem frischen Klon fehlt der Ordner.
@@ -99,6 +103,13 @@ nicht im Repo. CircuitPython verbindet sich damit automatisch beim Start.
   advertised 25m des Treibers sind unrealistisch und erzeugen Rauschen.
 - Hardware: LIDAR Yaw ist nominal 0 (blickt nach +x), muss aber physisch
   verifiziert werden, da Skews das Mapping ruinieren.
+- **Die gemessenen Fahrzahlen stehen an genau einer Stelle:**
+  `ros2/omnibot_base/omnibot_base/kinematics.py`. Kennlinie, Spurweite und
+  Grenzen gehoeren dort hin und nirgendwo sonst - die Tests im selben Paket
+  pruefen sie gegen die tatsaechlich gefahrenen Messwerte.
+- Odometrie wird aus der **Telemetrie** gebildet, nicht aus dem Sollwert. Das
+  Board meldet das real angelegte Tastverhaeltnis, also schlagen Totband und
+  Totmannschaltung korrekt durch.
 
 ## Firmware am Board testen
 

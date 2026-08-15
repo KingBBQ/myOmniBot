@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>omnibot_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    Startet den Omnibot 5402 auf dem Bordrechner: Modell, Motorknoten und LIDAR.
+  </description>
+  <maintainer email="gw@communitylabs.de">gregor</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>omnibot_base</exec_depend>
+  <exec_depend>omnibot_description</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <!-- Der LIDAR-Treiber wird aus den Quellen gebaut, siehe docs/ros2-setup.md.
+       Kein rosdep-Paket, deshalb hier nur als Kommentar: ldlidar_stl_ros2 -->
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

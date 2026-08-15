@@ -57,6 +57,14 @@
       Nav2/slam_toolbox sind dafuer noch nicht gebaut (Stand 08/2026)
 - [ ] LIDAR montieren, Montageoffset ausmessen
 - [ ] ROS2-Pakete: `omnibot_base`, `omnibot_description`, `omnibot_bringup`
+      - [x] Geschrieben und angelegt unter `ros2/`, siehe `ros2/README.md`.
+            Kennlinie und Spurweite stecken in `kinematics.py` und sind gegen
+            die Messwerte getestet
+      - [ ] Auf dem Pi bauen und starten - **noch nie kompiliert**, hier ist
+            kein ROS installiert
+      - [ ] Parameternamen in `ros2/omnibot_bringup/launch/lidar.launch.py`
+            gegen das `ld19.launch.py` des Treibers pruefen
+      - [ ] Schwenkrolle laengs vermessen (`caster_x` im URDF ist geschaetzt)
 - [ ] SLAM mit `rf2o` + `slam_toolbox`
 - [ ] Nav2 in Betrieb nehmen
 
