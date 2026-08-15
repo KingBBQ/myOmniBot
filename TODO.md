@@ -29,10 +29,30 @@
 - [x] LDROBOT STL-19P am PC in einer Ubuntu-24.04-VM getestet (`docs/ros2-setup.md`)
 - [x] Chassisgeometrie vermessen (siehe `DOCUMENTATION.md`)
 - [x] Serielles Protokoll und Motorknoten-Firmware (`src/code.py`, `src/hardware.py`)
-- [ ] Firmware am Board testen (`tools/serial_console.py`) - ueber den GPIO-UART
+- [x] Firmware am Board testen (`tools/serial_console.py`) - ueber den GPIO-UART
       des Pi auf `/dev/ttyAMA0`, USB-TTL-Adapter nur noch fuer Tests ohne Pi
-- [ ] Kennlinie Duty -> m/s messen (Messläufe `g` und `r` im serial_console)
-- [ ] Raspberry Pi 4 aufsetzen (Ubuntu Server 24.04 arm64, `docs/pi-setup.md`)
+- [ ] **Offener Fehler: der Motorknoten haengt sich im Fahrbetrieb auf.**
+      Beobachtet 15.08.2026 bei den Messlaeufen: irgendwann kommt am Pi nichts
+      mehr, erst ein Reset des ESP32 hilft. Ein Brownout waere es nicht, der
+      wuerde sich selbst erholen - `code.py` liefe nach dem Reset wieder an.
+      Ursache vermutlich eine Ausnahme in der ungeschuetzten `while True:`
+      (`src/code.py:331`): dann endet `code.py`, CircuitPython faellt in die
+      REPL und UART2 verstummt dauerhaft.
+      - [ ] Traceback abfangen: USB des Boards an den Laptop (nicht an den Pi,
+            Stromzweig!), `screen /dev/ttyUSB0 115200`, fahren bis es haengt
+      - [ ] Schnelltest ohne Werkzeug: pulsieren die Augen-LEDs beim Haenger
+            weiter, lebt die Schleife und nur der Link ist tot
+      - [ ] Schleifenkoerper absichern (Motoren stoppen, Traceback ausgeben,
+            weiterlaufen) und `receiver_buffer_size` groesser waehlen
+- [x] Kennlinie Duty -> m/s messen (Messläufe `g` und `r` im serial_console)
+      - [x] Geradeausfahrt vermessen (15.08.2026): `v = 2,49e-4 * (duty - 140)`,
+            Hoechstgeschwindigkeit 0,212 m/s, Fit gilt ab duty 400. Tabelle und
+            Konsequenzen fuer Nav2 in `DOCUMENTATION.md`
+      - [x] Drehung vermessen (`r`, 15.08.2026): 2,48 rad/s bei duty 1000.
+            Effektive Spurweite aus `b_eff = 2v/omega` = ~165 mm, also
+            praktisch die geometrischen 170 mm - der befuerchtete
+            Skid-Steer-Schlupfaufschlag tritt nicht auf
+- [x] Raspberry Pi aufsetzen (Ubuntu Server 24.04 arm64, `docs/pi-setup.md`)
       Achtung: **nicht** Ubuntu 26.04 - dort gibt es nur ROS2 Lyrical, und
       Nav2/slam_toolbox sind dafuer noch nicht gebaut (Stand 08/2026)
 - [ ] LIDAR montieren, Montageoffset ausmessen
@@ -52,7 +72,9 @@
 - [ ] Welle für die Scheibe festlegen — sauber, außerhalb des Getriebefetts
 - [ ] Halterungen für die H2010-Schranken konstruieren und drucken
 - [ ] Encoder auswerten (`countio.Counter`), Telemetriefelder sind vorbereitet
-- [ ] Effektive Spurweite kalibrieren (Skid-Steer-Schlupf, siehe `DOCUMENTATION.md`)
+- [ ] Effektive Spurweite feinkalibrieren: zehn Umdrehungen mit laufender
+      Odometrie. Grobwert steht schon (~165 mm, siehe `DOCUMENTATION.md`), die
+      Korrektur wird klein - erst angehen, wenn Odometrie publiziert
 
 ## Einkaufsliste
 - [x] PPTC Sicherung (Resettable Fuse) 1A - 1.2A (für jeden Motorkanal)

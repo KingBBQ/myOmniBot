@@ -147,6 +147,74 @@ still applies, but with an important caveat:
 > place and tune the parameter until reported and actual rotation agree.
 > Straight-line driving is unaffected. See phase 2d.
 
+**Update 2026-08-15: measured, and the concern turned out to be unfounded.**
+The effective separation is ~165 mm against 170 mm geometric — no correction
+worth applying. See "Rotation and the effective wheel separation" below.
+
+### Duty-to-speed calibration (straight line)
+Measured 2026-08-15 with `tools/serial_console.py /dev/ttyAMA0 --run-seconds 5`,
+key `g` per step. Lead gel cell at **6.2 V** (open circuit, before the runs),
+hard floor, USB unplugged from the RoboESP32 so the motors ran off the battery
+alone. Distance measured under `base_link` (rear axle centreline), speed =
+distance / 5 s.
+
+| Duty [promille] | Distance | v [m/s] | Runs |
+| ---: | ---: | ---: | :--- |
+| 200 | 11.5 / 11.8 cm | 0.023 | 2 |
+| 400 | 32 cm | 0.064 | 1 |
+| 600 | 57 cm | 0.114 | 2, identical |
+| 800 | 84 cm | 0.168 | 1 |
+| 1000 | 106 cm | 0.212 | 1 |
+
+Least-squares fit over 400-1000 — **this is the model the host should use**:
+
+    v [m/s] = 2.49e-4 * (duty - 140)
+    duty    = 4016 * v + 140
+
+Residuals stay under 2 % across the whole range. Consequences:
+
+- **Top speed is 0.212 m/s.** Set Nav2 `max_vel_x` to about 0.20 m/s to keep
+  headroom; the controller must never ask for more than the robot can deliver.
+- **The fit is invalid below duty 400.** At 200 the measured 0.023 m/s is well
+  *above* the extrapolated 0.015 m/s — the low end is nonlinear and the robot
+  merely creeps there (half a wheel revolution in 5 s). Treat 0.064 m/s as the
+  lowest trustworthy commanded speed until the sub-400 range is measured
+  properly.
+- The slope steepens from 2.04e-4 (200-400) to 2.70e-4 (600-800) and then falls
+  back to 2.20e-4 (800-1000). The roll-off at the top is most likely battery sag
+  under load, so the curve is **valid for a charged 6.2 V cell** and will shift
+  down as the battery drains. Re-measure at a lower state of charge before
+  trusting odometry over a long run.
+- **No systematic side asymmetry.** Lateral deviation went right at 400 (2 cm),
+  vanished at 600 and went left at 1000. Random scatter from wheel play and
+  start alignment, not a motor mismatch — no per-side gain correction needed.
+
+### Rotation and the effective wheel separation
+Same session, key `r` (one side +duty, the other -duty), 5 s per run, angle read
+off a tape mark on the floor. Because v(duty) is now known, the effective wheel
+separation follows directly from `b_eff = 2 * v / omega` — no SLAM-based
+guesswork needed.
+
+| Duty | Angle in 5 s | omega [rad/s] | v per side [m/s] | b_eff |
+| ---: | ---: | ---: | ---: | ---: |
+| 600 | 405 deg | 1.41 | 0.114 | 161 mm |
+| 1000 | 710 deg | 2.48 | 0.212 | 171 mm |
+
+**b_eff is about 165 mm — essentially the geometric track width of 170 mm.**
+The 10-50 % scrub penalty warned about above does *not* materialise on this
+chassis, exactly as the wheelbase-to-track ratio of 0.5 predicted. The 6 %
+spread between the two steps is within measurement error: the angle was read to
+about +/-10 deg, and the straight-line v is itself slightly understated because
+a veering run covers more path than the point-to-point distance measured.
+
+Use **0.170 m** as the wheel separation in the odometry model. Refine it later
+with the ten-turn test once odometry actually publishes; do not spend effort on
+it before then, the correction will be small.
+
+Top rotation rate is 2.48 rad/s, which is far more than navigation needs. Cap
+Nav2 `max_vel_theta` well below it — around 1.0-1.5 rad/s — so the platform
+stays predictable.
+
 ### Open items
 - [ ] Verify the LIDAR yaw once mounted: a flat wall straight ahead must appear
       straight ahead in RViz2. The assumed yaw is 0, but a housing mounted a few
