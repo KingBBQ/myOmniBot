@@ -89,14 +89,33 @@ class MotorLink:
     """
 
     def __init__(self, port, baudrate=115200, timeout=0.0):
+        self.port = port
+        self.baudrate = baudrate
+        self.timeout = timeout
         self.serial = serial.Serial(port, baudrate, timeout=timeout)
         self._buffer = b""
+        self.bytes_read = 0
 
     def close(self):
         try:
             self.stop()
         finally:
             self.serial.close()
+
+    def reopen(self):
+        """Port schliessen und neu oeffnen.
+
+        Gegenmittel gegen einen Port, der dauerhaft nichts mehr liefert, ohne
+        einen Fehler zu melden: in_waiting bleibt 0, obwohl das Board sendet,
+        und erst ein frisch geoeffneter Port bringt die Zeilen zurueck. Genau
+        das passiert sonst beim Neustart des Knotens von Hand.
+        """
+        try:
+            self.serial.close()
+        except Exception:  # noqa - ein kaputter Port laesst sich nicht schliessen
+            pass
+        self.serial = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
+        self._buffer = b""
 
     # ------------------------------------------------------------------ senden
 
@@ -118,7 +137,9 @@ class MotorLink:
         """Alle vollstaendigen Zeilen abholen, die inzwischen angekommen sind."""
         waiting = self.serial.in_waiting
         if waiting:
-            self._buffer += self.serial.read(waiting)
+            data = self.serial.read(waiting)
+            self.bytes_read += len(data)
+            self._buffer += data
 
         lines = []
         while b"\n" in self._buffer:

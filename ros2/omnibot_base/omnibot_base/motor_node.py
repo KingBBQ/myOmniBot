@@ -82,6 +82,7 @@ class MotorNode(Node):
         self.last_ms = None
         self.last_telemetry_time = None
         self.was_manual = False
+        self.was_deadman = False
         self.board_silent = False
 
         self.odom_pub = self.create_publisher(Odometry, "odom", 10)
@@ -243,24 +244,51 @@ class MotorNode(Node):
             self.was_manual = telemetry.manual
             self.manual_pub.publish(Bool(data=telemetry.manual))
 
-        if telemetry.deadman:
-            self.get_logger().warning(
-                "Board hat wegen Totmannschaltung gestoppt (Flags: {})".format(
-                    " ".join(flag_names(telemetry.flags))
+        # Nur die Flanke melden. Das Flag steht, bis wieder ein V ankommt, und
+        # im Handbetrieb ist das nie - sonst haette man 10 Zeilen pro Sekunde.
+        if telemetry.deadman != self.was_deadman:
+            if telemetry.deadman:
+                self.get_logger().warning(
+                    "Board hat wegen Totmannschaltung gestoppt (Flags: {})".format(
+                        " ".join(flag_names(telemetry.flags))
+                    )
                 )
-            )
+            else:
+                self.get_logger().info("Totmannschaltung geloest, Sollwerte kommen an.")
+            self.was_deadman = telemetry.deadman
 
     def check_board_alive(self):
-        """Der Motorknoten haengt sich gelegentlich auf - das darf nicht stumm
-        bleiben. Siehe den offenen Fehler in TODO.md."""
+        """Telemetrieausfall melden und den Port neu aufmachen.
+
+        Beobachtet 16.08.2026: die Telemetrie bleibt weg, das Board faehrt aber
+        weiter auf der Fernbedienung, und ein Neustart des *Knotens* holt sie
+        zurueck. Der Port liefert also dauerhaft nichts, ohne einen Fehler zu
+        melden. Deshalb macht der Knoten ihn selbst neu auf, statt auf einen
+        Reset am ESP32 zu warten - und protokolliert, ob das genuegt hat. Kommt
+        die Telemetrie danach zurueck, liegt es am Pi und nicht am Board.
+        """
         if self.last_telemetry_time is None or self.board_silent:
             return
         age = (self.get_clock().now() - self.last_telemetry_time).nanoseconds * 1e-9
-        if age > self.telemetry_timeout:
-            self.board_silent = True
+        if age <= self.telemetry_timeout:
+            return
+
+        self.board_silent = True
+        self.get_logger().error(
+            "Seit {:.1f} s keine Telemetrie ({} Bytes gelesen). Odometrie ist "
+            "ab jetzt ungueltig.".format(age, self.link.bytes_read)
+        )
+        try:
+            self.link.reopen()
+        except Exception as err:  # noqa - der Knoten stirbt daran nicht
             self.get_logger().error(
-                "Seit {:.1f} s keine Telemetrie - Board haengt vermutlich. "
-                "Odometrie ist ab jetzt ungueltig, Reset am ESP32 noetig.".format(age)
+                "Port liess sich nicht neu oeffnen: {} - jetzt hilft nur noch "
+                "ein Reset am ESP32.".format(err)
+            )
+        else:
+            self.get_logger().warning(
+                "Port neu geoeffnet. Kommt die Telemetrie gleich zurueck, lag "
+                "es am Pi; bleibt sie weg, haengt das Board."
             )
 
     def shutdown(self):
