@@ -21,6 +21,19 @@ MAX_LINE = 64
 
 STATUS_PERIOD = 0.2  # 5 Hz
 
+# Der Ringpuffer von espnow.ESPNow fasst per Vorgabe 526 Bytes, also nur gut ein
+# Dutzend Pakete. Laeuft er ueber oder schreibt der Empfangsinterrupt hinein,
+# waehrend read() liest, wird sein Kopf inkonsistent und read() wirft
+# "ValueError: Invalid buffer" - danach bei jedem weiteren Aufruf erneut.
+# Beobachtet 16.08.2026 im Fahrbetrieb. Mehr Puffer macht das unwahrscheinlicher,
+# heilt es aber nicht: dafuer gibt es _neustart().
+BUFFER_SIZE = 4096
+
+# Nach so vielen Neustarts in Folge ohne ein einziges gutes Paket geben wir den
+# Funk auf. Der serielle Link zum Companion Computer laeuft weiter - lieber ohne
+# Fernbedienung fahren als in einer Neustartschleife haengen.
+MAX_RESTARTS = 5
+
 
 class RemoteLink:
     """ESP-NOW-Empfaenger. Wirft beim Anlegen, wenn kein Funk verfuegbar ist."""
@@ -40,28 +53,61 @@ class RemoteLink:
             wifi.radio.stop_station()
 
         self._espnow = espnow
-        self.funk = espnow.ESPNow()
         self.allowed_mac = allowed_mac  # None = jede Fernbedienung wird akzeptiert
-        self.peer = None
-        self.peer_mac = None
         self.last_packet = 0.0
         self._last_status = 0.0
         self.mac = bytes(wifi.radio.mac_address)
         self.errors = 0
         self.last_error = None
+        self.restarts = 0
+        self.funk = None
+        self._oeffnen()
+
+    def _oeffnen(self):
+        self.funk = self._espnow.ESPNow(buffer_size=BUFFER_SIZE)
+        self.peer = None
+        self.peer_mac = None
+
+    def _neustart(self):
+        """Funk komplett neu aufsetzen.
+
+        Ist der Ringpuffer einmal inkonsistent, wirft read() bei jedem Aufruf
+        weiter - hier hilft nur ein frisches ESPNow-Objekt. Der Peer geht dabei
+        verloren und wird beim naechsten Paket automatisch neu eingetragen.
+        """
+        self.restarts += 1
+        try:
+            self.funk.deinit()
+        except Exception:  # noqa - ein kaputtes Objekt laesst sich nicht schliessen
+            pass
+        self.funk = None
+        self.peer = None
+        self.peer_mac = None
+        if self.restarts > MAX_RESTARTS:
+            return False
+        try:
+            self._oeffnen()
+        except Exception as err:  # noqa - ohne Funk faehrt der Roboter weiter
+            self.last_error = "Neustart fehlgeschlagen: {}".format(err)
+            return False
+        return True
 
     def lines(self):
         """Alle anstehenden Pakete abholen und als Protokollzeilen zurueckgeben."""
         out = []
+        if self.funk is None:
+            return out
         while True:
             try:
                 paket = self.funk.read()
             except Exception as err:  # noqa - Funkfehler stoppt den Antrieb nicht
                 # Ein Fehler beim Lesen darf den Fahrbetrieb am seriellen Link
-                # nicht mitreissen. Gezaehlt wird trotzdem: haeufen sich die
-                # Fehler, ist der Funk der Ausloeser und nicht der Antrieb.
+                # nicht mitreissen. Der Puffer bleibt danach kaputt, also wird
+                # der Funk sofort neu aufgesetzt statt bei jedem Schleifendurch-
+                # lauf erneut in denselben Fehler zu laufen.
                 self.errors += 1
                 self.last_error = "{}: {}".format(type(err).__name__, err)
+                self._neustart()
                 break
             if paket is None:
                 break
@@ -70,6 +116,7 @@ class RemoteLink:
                 continue  # fremder Sender
 
             self.last_packet = time.monotonic()
+            self.restarts = 0  # ein gutes Paket zaehlt die Abbruchgrenze zurueck
             self._remember(paket.mac)
 
             for roh in paket.msg.split(b"\n"):

@@ -382,7 +382,11 @@ while True:
             remote.status(now, manual, moving)
             if remote.errors != funkfehler:
                 funkfehler = remote.errors
-                note("funk {} {}".format(funkfehler, remote.last_error))
+                note(
+                    "funk {} neustarts {} {}".format(
+                        funkfehler, remote.restarts, remote.last_error
+                    )
+                )
 
         # Totmannschaltung: stoppen, wenn der Host sich nicht mehr meldet
         if moving and now - last_command > DEADMAN_TIMEOUT:
