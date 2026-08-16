@@ -12,8 +12,12 @@ Sie liegen hier im Repo und **nicht** in `~/ros2_ws/src`, damit sie versioniert
 sind. In den Workspace kommen sie per Symlink - colcon findet Pakete rekursiv,
 ein Link auf das ganze Verzeichnis reicht:
 
+Auf dem Pi liegt der Klon in `~/myOmniBot`, auf dem Entwicklungsrechner in
+`~/src/myOmniBot` - der Link muss aufs richtige Ziel zeigen, ein toter Link
+wird von colcon kommentarlos uebergangen:
+
 ```bash
-ln -s ~/src/myOmniBot/ros2 ~/ros2_ws/src/omnibot
+ln -s ~/myOmniBot/ros2 ~/ros2_ws/src/omnibot
 cd ~/ros2_ws
 colcon build --symlink-install --packages-select \
     omnibot_base omnibot_description omnibot_bringup
