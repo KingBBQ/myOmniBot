@@ -30,6 +30,23 @@ def read_until(port, token, timeout=5.0):
     raise TimeoutError("{!r} nicht empfangen, gelesen: {!r}".format(token, data[-200:]))
 
 
+def prompt(port, versuche=12):
+    """Ctrl-C schicken, bis der normale REPL-Prompt steht."""
+    data = b""
+    for _ in range(versuche):
+        port.write(b"\x03\x03")
+        time.sleep(0.3)
+        port.write(b"\r\n")
+        deadline = time.monotonic() + 1.0
+        while time.monotonic() < deadline:
+            data += port.read(port.in_waiting or 1)
+            if data.endswith(b">>> "):
+                return data
+    raise TimeoutError(
+        "Board kommt nicht in die REPL, gelesen: {!r}".format(data[-200:])
+    )
+
+
 def raw_exec(port, code, timeout=10.0):
     """Ein Stueck Python in der Raw-REPL ausfuehren und die Ausgabe zurueckgeben."""
     port.write(code.encode("utf-8") + b"\x04")
@@ -56,20 +73,28 @@ def main():
     target = args.target or "/" + source.name
     payload = source.read_bytes()
 
-    port = serial.Serial(args.port, args.baud, timeout=1)
+    # DTR und RTS vor dem Oeffnen abschalten. Der CH340 fuehrt sie auf die
+    # Auto-Reset-Schaltung des Boards (EN und GPIO0); zieht pyserial sie beim
+    # Oeffnen wie ueblich aktiv, haelt das den ESP32 unter Umstaenden im Reset -
+    # das Board schweigt dann auf jedes Ctrl-C und der Upload laeuft in einen
+    # Timeout. Beobachtet 16.08.2026, nachdem Thonny den Port losgelassen hatte.
+    port = serial.Serial()
+    port.port = args.port
+    port.baudrate = args.baud
+    port.timeout = 1
+    port.dtr = False
+    port.rts = False
+    port.open()
     try:
-        # Laufendes code.py anhalten und in die Raw-REPL wechseln. Auf den
-        # normalen Prompt warten statt fest zu schlafen: haengt das Board in
-        # einem blockierenden Aufruf (der Webserver etwa steht in accept()),
-        # dauert das Ctrl-C deutlich laenger als 0,3 s - und ein zu frueh
-        # gesendetes Ctrl-A geht dann verloren.
-        port.write(b"\x03\x03")
+        # Laufendes code.py anhalten und in die Raw-REPL wechseln. Das Ctrl-C
+        # wird wiederholt, statt einmal gesendet und gehofft: das Oeffnen des
+        # Ports kann selbst noch einen Reset ausloesen, und waehrend das Board
+        # bootet geht ein einzelner Abbruch verloren. Ausserdem dauert er
+        # laenger, wenn das Board in einem blockierenden Aufruf steht.
         # Nach dem Abbruch steht da "Press any key to enter the REPL" - ohne
         # diesen Tastendruck kommt nie ein Prompt. Am fertigen Prompt ist das
         # Newline dagegen wirkungslos, also darf es immer raus.
-        time.sleep(0.3)
-        port.write(b"\r\n")
-        read_until(port, b">>> ", timeout=10.0)
+        prompt(port)
         time.sleep(0.5)
         port.reset_input_buffer()
         port.write(b"\x01")

@@ -31,19 +31,19 @@
 - [x] Serielles Protokoll und Motorknoten-Firmware (`src/code.py`, `src/hardware.py`)
 - [x] Firmware am Board testen (`tools/serial_console.py`) - ueber den GPIO-UART
       des Pi auf `/dev/ttyAMA0`, USB-TTL-Adapter nur noch fuer Tests ohne Pi
-- [ ] **Offener Fehler: der Motorknoten haengt sich im Fahrbetrieb auf.**
-      Beobachtet 15.08.2026 bei den Messlaeufen: irgendwann kommt am Pi nichts
-      mehr, erst ein Reset des ESP32 hilft. Ein Brownout waere es nicht, der
-      wuerde sich selbst erholen - `code.py` liefe nach dem Reset wieder an.
-      Ursache vermutlich eine Ausnahme in der ungeschuetzten `while True:`
-      (`src/code.py:331`): dann endet `code.py`, CircuitPython faellt in die
-      REPL und UART2 verstummt dauerhaft.
-      - [ ] Traceback abfangen: USB des Boards an den Laptop (nicht an den Pi,
-            Stromzweig!), `screen /dev/ttyUSB0 115200`, fahren bis es haengt
-      - [ ] Schnelltest ohne Werkzeug: pulsieren die Augen-LEDs beim Haenger
-            weiter, lebt die Schleife und nur der Link ist tot
-      - [ ] Schleifenkoerper absichern (Motoren stoppen, Traceback ausgeben,
-            weiterlaufen) und `receiver_buffer_size` groesser waehlen
+- [x] **Behoben: der Motorknoten hing sich im Fahrbetrieb auf.** Ursache war
+      `ValueError: Invalid buffer` aus `funk.read()` in `espnow_link.py`. Der
+      Ringpuffer von `espnow.ESPNow` fasst per Vorgabe nur 526 Bytes; laeuft er
+      ueber oder schreibt der Empfangsinterrupt hinein waehrend gelesen wird,
+      bleibt er dauerhaft inkonsistent. Ungefangen beendete das `code.py`,
+      CircuitPython fiel in die REPL, UART2 verstummte - daher half nur ein
+      Reset. Gefunden 16.08.2026, nachdem das Board Diagnosezeilen ueber den
+      Link schickte und die Ausnahme im ROS-Log auftauchte.
+      - [x] Schleifenkoerper absichern: Motoren stoppen, `# exc` ueber den Link,
+            Traceback in die REPL, weiterlaufen
+      - [x] `buffer_size=4096` und `_neustart()` in `espnow_link.py`
+      - [ ] Im Fahrbetrieb nachweisen, dass die Neustarts greifen - kommen
+            `# funk`-Zeilen ohne folgenden Telemetrieausfall, sitzt der Fix
 - [x] Kennlinie Duty -> m/s messen (Messläufe `g` und `r` im serial_console)
       - [x] Geradeausfahrt vermessen (15.08.2026): `v = 2,49e-4 * (duty - 140)`,
             Hoechstgeschwindigkeit 0,212 m/s, Fit gilt ab duty 400. Tabelle und

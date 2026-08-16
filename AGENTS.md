@@ -20,7 +20,14 @@ Der RoboESP32 nutzt einen klassischen ESP32 **ohne natives USB**. Es gibt daher
 
 Der serielle Port kann nur von **einem** Programm gleichzeitig belegt werden:
 Thonny muss die Verbindung trennen ("Stop/Restart" reicht nicht immer), sonst
-schlaegt der Upload mit einem Timeout fehl.
+schlaegt der Upload mit einem Timeout fehl. Thonny verbindet sich ausserdem mit
+`interrupt_on_connect`, schickt also ein Ctrl-C und beendet damit ein laufendes
+`code.py` - im Fahrbetrieb sieht das aus wie ein Boardhaenger.
+
+DTR und RTS des CH340 haengen an der Auto-Reset-Schaltung (EN und GPIO0). Zieht
+pyserial sie beim Oeffnen wie ueblich aktiv, kann der ESP32 im Reset stehen
+bleiben und auf jedes Ctrl-C schweigen. `tools/upload.py` schaltet beide
+deshalb vor dem `open()` ab und wiederholt den Abbruch, bis der Prompt steht.
 
 ## Repo-Layout
 
@@ -73,6 +80,12 @@ nicht im Repo. CircuitPython verbindet sich damit automatisch beim Start.
   `ESP-NOW error 0x3069` (`ESP_ERR_ESPNOW_NOT_FOUND`), auch wenn der Peer in
   `funk.peers` steht. Der Peer muss mitgegeben werden: `funk.send(msg, peer)`.
   Am Board verifiziert mit CircuitPython 10.2.1 - die API-Doku legt anderes nahe.
+- ESP-NOW: `funk.read()` wirft `ValueError: Invalid buffer`, sobald der interne
+  Ringpuffer inkonsistent ist - und dann bei **jedem** weiteren Aufruf erneut.
+  Die Vorgabe `buffer_size=526` reicht fuer gut ein Dutzend Pakete, deshalb
+  steht sie in `espnow_link.py` auf 4096. Heilen laesst sich der Zustand nur
+  durch ein frisches `ESPNow`-Objekt (`_neustart()`), nicht durch Weiterlesen.
+  Am Board verifiziert 16.08.2026 - das war die Ursache der Boardhaenger.
 - ESP-NOW und WLAN teilen sich den Funkkanal. Verbindet sich ein Board per
   `settings.toml` in ein WLAN, uebernimmt es den Kanal des Accesspoints und
   hoert die Gegenstelle nicht mehr. Fuer den Fahrbetrieb gehoeren die
