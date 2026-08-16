@@ -151,6 +151,12 @@ class MotorNode(Node):
                     self.on_telemetry(telemetry)
             elif line.startswith("id "):
                 self.get_logger().info("Board meldet sich: {}".format(line))
+            elif line.startswith("# "):
+                # Diagnosezeilen des Boards: Startbericht und abgefangene
+                # Ausnahmen. Die gehoeren sichtbar ins Log - ein "# boot" nach
+                # einem Telemetrieausfall ist der Beweis, dass das Board sich
+                # neu gestartet hat, und der Grund steht in derselben Zeile.
+                self.get_logger().warning("Board: {}".format(line[2:]))
             elif line != "ok":
                 self.get_logger().debug("Board: {}".format(line))
 

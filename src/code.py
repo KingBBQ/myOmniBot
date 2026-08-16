@@ -19,6 +19,8 @@
 #     ok                                            Quittung auf V und S
 #     id omnibot <board> <protokollversion>         Antwort auf P
 #     t <ms> <l> <r> <ticks_l> <ticks_r> <flags>    Telemetrie, 10 Hz
+#     # boot <board> <reset_reason> <run_reason>    Startbericht, einmal
+#     # exc <nr> <Typ>: <Text>                      abgefangene Ausnahme
 #
 # Dieselben Zeilen kommen ueber **zwei** Wege herein: die serielle Leitung vom
 # Companion Computer und ESP-NOW von der Fernbedienung (src/code_remote.py).
@@ -43,7 +45,9 @@
 
 import time
 
+import microcontroller
 import pwmio
+import supervisor
 
 import hardware
 
@@ -200,6 +204,18 @@ def write(text):
         print("Schreibfehler:", err)
 
 
+def note(text):
+    """Diagnosezeile an beide Ausgaenge.
+
+    Ueber den Link, weil beim Fahren niemand am USB-Port haengt: nur so landet
+    ein Neustart oder eine Ausnahme im ROS-Log des Companion Computers. Der
+    Host verwirft unbekannte Zeilen ohnehin, das Raute-Praefix macht sie
+    ausdruecklich als Diagnose kenntlich.
+    """
+    print(text)
+    write("# {}\n".format(text))
+
+
 def drive(left, right):
     """Radsollwerte anwenden, jeweils -1.0 .. +1.0."""
     global deadband_flags, moving
@@ -326,28 +342,72 @@ except Exception as err:  # noqa - alles, was Import oder Funkinit wirft
     print("Fernbedienung nicht verfuegbar:", err)
     remote = None
 
+def _grund(wert):
+    """microcontroller.ResetReason.BROWNOUT -> BROWNOUT."""
+    text = str(wert)
+    return text[text.rfind(".") + 1 :]
+
+
 print("Omnibot Motorknoten bereit - Board:", hardware.BOARD)
 
+# Der Startbericht geht ueber den Link, damit der Companion Computer einen
+# Neustart des Boards als solchen erkennt. Bleibt die Telemetrie weg und
+# danach kommt diese Zeile, hat sich das Board neu gestartet - der Grund steht
+# dabei. Kommt die Telemetrie ohne Startbericht wieder, war es kein Neustart.
+note(
+    "boot {} {} {}".format(
+        hardware.BOARD,
+        _grund(microcontroller.cpu.reset_reason),
+        _grund(supervisor.runtime.run_reason),
+    )
+)
+
+fehler = 0
+funkfehler = 0
+
 while True:
-    now = time.monotonic()
+    # Der Schleifenkoerper ist abgesichert, weil eine durchschlagende Ausnahme
+    # code.py beendet: CircuitPython faellt dann in die REPL, der Link
+    # verstummt dauerhaft und die Motoren behalten ihren letzten Sollwert.
+    # Genau das darf im Fahrbetrieb nicht passieren.
+    try:
+        now = time.monotonic()
 
-    for line in reader.lines():
-        handle(line, "link")
+        for line in reader.lines():
+            handle(line, "link")
 
-    if remote:
-        for line in remote.lines():
-            handle(line, "remote")
-        remote.status(now, manual, moving)
+        if remote:
+            for line in remote.lines():
+                handle(line, "remote")
+            remote.status(now, manual, moving)
+            if remote.errors != funkfehler:
+                funkfehler = remote.errors
+                note("funk {} {}".format(funkfehler, remote.last_error))
 
-    # Totmannschaltung: stoppen, wenn der Host sich nicht mehr meldet
-    if moving and now - last_command > DEADMAN_TIMEOUT:
-        drive(0.0, 0.0)
-        deadman_tripped = True
-        print("Timeout - gestoppt")
+        # Totmannschaltung: stoppen, wenn der Host sich nicht mehr meldet
+        if moving and now - last_command > DEADMAN_TIMEOUT:
+            drive(0.0, 0.0)
+            deadman_tripped = True
+            print("Timeout - gestoppt")
 
-    if now - last_telemetry >= TELEMETRY_PERIOD:
-        last_telemetry = now
-        telemetry(now)
+        if now - last_telemetry >= TELEMETRY_PERIOD:
+            last_telemetry = now
+            telemetry(now)
 
-    if eyes:
-        eyes.animate(now)
+        if eyes:
+            eyes.animate(now)
+
+    except Exception as err:  # noqa - der Fahrbetrieb ueberlebt jeden Fehler
+        fehler += 1
+        try:
+            drive(0.0, 0.0)  # erst anhalten, dann berichten
+        except Exception:  # noqa
+            pass
+        note("exc {} {}: {}".format(fehler, type(err).__name__, err))
+        try:
+            import traceback
+
+            traceback.print_exception(err)
+        except Exception:  # noqa - Traceback ist Kuer, Weiterlaufen ist Pflicht
+            pass
+        time.sleep(0.2)  # nicht in einer Fehlerschleife heisslaufen

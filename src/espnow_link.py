@@ -47,12 +47,22 @@ class RemoteLink:
         self.last_packet = 0.0
         self._last_status = 0.0
         self.mac = bytes(wifi.radio.mac_address)
+        self.errors = 0
+        self.last_error = None
 
     def lines(self):
         """Alle anstehenden Pakete abholen und als Protokollzeilen zurueckgeben."""
         out = []
         while True:
-            paket = self.funk.read()
+            try:
+                paket = self.funk.read()
+            except Exception as err:  # noqa - Funkfehler stoppt den Antrieb nicht
+                # Ein Fehler beim Lesen darf den Fahrbetrieb am seriellen Link
+                # nicht mitreissen. Gezaehlt wird trotzdem: haeufen sich die
+                # Fehler, ist der Funk der Ausloeser und nicht der Antrieb.
+                self.errors += 1
+                self.last_error = "{}: {}".format(type(err).__name__, err)
+                break
             if paket is None:
                 break
 
