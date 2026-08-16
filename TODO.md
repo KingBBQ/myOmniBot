@@ -42,8 +42,10 @@
       - [x] Schleifenkoerper absichern: Motoren stoppen, `# exc` ueber den Link,
             Traceback in die REPL, weiterlaufen
       - [x] `buffer_size=4096` und `_neustart()` in `espnow_link.py`
-      - [ ] Im Fahrbetrieb nachweisen, dass die Neustarts greifen - kommen
-            `# funk`-Zeilen ohne folgenden Telemetrieausfall, sitzt der Fix
+      - [x] Im Fahrbetrieb nachgewiesen (16.08.2026): ein `# funk`-Neustart
+            waehrend der Fahrt, Telemetrie und Fernbedienung liefen ungestoert
+            weiter. Die Race Condition im Ringpuffer bleibt, wird aber
+            ueberlebt - das ist die Loesung, nicht nur ein Pflaster
 - [x] Kennlinie Duty -> m/s messen (Messläufe `g` und `r` im serial_console)
       - [x] Geradeausfahrt vermessen (15.08.2026): `v = 2,49e-4 * (duty - 140)`,
             Hoechstgeschwindigkeit 0,212 m/s, Fit gilt ab duty 400. Tabelle und
